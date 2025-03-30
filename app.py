@@ -1,22 +1,22 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
+from collections import Counter
 
-st.title("🎨 Color Pixel Counter (with Value Mapping & Tolerance)")
+st.title("🎨 Color Pixel Counter (Dalí Test Ready)")
 
 uploaded_file = st.file_uploader("Upload a pixelated image with 5 known colors", type=["png", "jpg", "jpeg"])
 
-# Define the target colors and their values
+# Corrected colors extracted from your test image, with assigned values
 color_value_map = {
     (252, 255, 251): 1,  # White
     (242, 230, 0): 2,    # Yellow
-    (238, 102, 7): 3,    # Orange
-    (190, 0, 35): 4,     # Red
-    (0, 61, 174): 5      # Blue
+    (237, 100, 3): 3,    # Orange
+    (192, 0, 37): 4,     # Red
+    (0, 61, 167): 5      # Blue
 }
 
-# Allow tolerance in color comparison
-TOLERANCE = 10
+TOLERANCE = 10  # adjust if needed
 
 def is_close(color1, color2, tolerance=TOLERANCE):
     return all(abs(a - b) <= tolerance for a, b in zip(color1, color2))
@@ -26,7 +26,6 @@ if uploaded_file:
     img_array = np.array(img)
     st.image(img, caption="Uploaded Image", use_container_width=True)
 
-    # Flatten image to list of RGB tuples
     flat_pixels = img_array.reshape(-1, img_array.shape[-1])
     pixel_tuples = [tuple(pixel) for pixel in flat_pixels]
 

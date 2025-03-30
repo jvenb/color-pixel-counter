@@ -3,9 +3,18 @@ from PIL import Image
 import numpy as np
 from collections import Counter
 
-st.title("🎨 Color Pixel Counter (Auto 5-Color Mode)")
+st.title("🎨 Color Pixel Counter (with Value Mapping)")
 
-uploaded_file = st.file_uploader("Upload a pixelated image with 5 colors", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload a pixelated image with 5 known colors", type=["png", "jpg", "jpeg"])
+
+# Define your 5 known colors and their values
+color_value_map = {
+    (255, 255, 255): 1,  # White
+    (255, 255, 0): 2,    # Yellow
+    (255, 165, 0): 3,    # Orange
+    (255, 0, 0): 4,      # Red
+    (0, 0, 255): 5       # Blue
+}
 
 if uploaded_file:
     img = Image.open(uploaded_file).convert("RGB")
@@ -19,10 +28,16 @@ if uploaded_file:
     # Count occurrences of each color
     color_counts = Counter(pixel_tuples)
 
-    # Get the 5 most common colors
-    most_common_colors = color_counts.most_common(5)
+    st.subheader("🎯 Mapped Color Counts and Values:")
+    total_value = 0
 
-    st.subheader("🖐️ Top 5 Colors and Their Counts:")
-    for i, (color, count) in enumerate(most_common_colors, start=1):
-        st.markdown(f"**{i}. Color (RGB): {color} → {count} pixels**")
-        st.color_picker(f"Preview Color {i}", value='#%02x%02x%02x' % color, key=i)
+    for i, (color, value) in enumerate(color_value_map.items(), start=1):
+        count = color_counts.get(color, 0)
+        total = count * value
+        total_value += total
+
+        hex_color = '#%02x%02x%02x' % color
+        st.markdown(f"**{i}. Color (RGB): {color} → Pixels: {count} × Value: {value} = {total}**")
+        st.color_picker(f"Preview Color {i}", value=hex_color, key=i, label_visibility=\"collapsed\", disabled=True)
+
+    st.subheader(f"🧮 Total Image Value: {total_value}")

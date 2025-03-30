@@ -40,6 +40,6 @@ if uploaded_file:
 
         hex_color = '#%02x%02x%02x' % target_color
         st.markdown(f"**{i}. Color (RGB): {target_color} → Pixels: {count} × Value: {value} = {total}**")
-        st.color_picker(f"Preview Color {i}", value=hex_color, key=i, label_visibility=\"collapsed\", disabled=True)
+        st.color_picker(f"Preview Color {i}", value=hex_color, key=i, label_visibility="collapsed", disabled=True)
 
     st.subheader(f"🧮 Total Image Value: {total_value}")

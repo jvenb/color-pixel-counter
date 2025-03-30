@@ -7,13 +7,13 @@ st.title("🎨 Color Pixel Counter")
 
 uploaded_file = st.file_uploader("Upload a pixelated image with 5 known colors", type=["png", "jpg", "jpeg"])
 
-# Corrected colors extracted from your test image, with assigned values
+# Updated RGB values based on your latest image
 color_value_map = {
     (252, 255, 251): 1,  # White
     (242, 230, 0): 2,    # Yellow
-    (237, 100, 3): 3,    # Orange
-    (192, 0, 37): 4,     # Red
-    (0, 61, 167): 5      # Blue
+    (238, 102, 7): 3,    # Orange
+    (190, 0, 35): 4,     # Red ✅ (was 192, 0, 37)
+    (0, 61, 174): 5      # Blue
 }
 
 TOLERANCE = 10
@@ -57,7 +57,6 @@ if uploaded_file:
 
     if not unmatched_pixels:
         st.success("✅ All pixels in the image were matched to known colors. No pixels were left out.")
-        # Show original image enlarged with pixelated look
         enlarged = img.resize((img.width * ENLARGEMENT_FACTOR, img.height * ENLARGEMENT_FACTOR), Image.NEAREST)
         st.image(enlarged, caption="Crisp Enlarged Image", use_container_width=False)
     else:
@@ -69,7 +68,7 @@ if uploaded_file:
             st.markdown(f"- {color} → {count} pixel(s)")
             st.color_picker("", value=hex_color, key=f"unmatched-{hex_color}", disabled=True, label_visibility="collapsed")
 
-        # Create a grayscale version with unmatched pixels highlighted
+        # Highlight unmatched pixels on grayscale version
         grayscale = img.convert("L").convert("RGB")
         draw = ImageDraw.Draw(grayscale)
         width, height = img.size

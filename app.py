@@ -1,22 +1,28 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
+from collections import Counter
 
-st.title("🎨 Color Pixel Counter")
+st.title("🎨 Color Pixel Counter (Auto 5-Color Mode)")
 
-uploaded_file = st.file_uploader("Upload a pixelated image", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload a pixelated image with 5 colors", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     img = Image.open(uploaded_file).convert("RGB")
     img_array = np.array(img)
-    st.image(img, caption="Click on the image to select a color", use_column_width=True)
+    st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    x = st.number_input("X Coordinate (pixel)", min_value=0, max_value=img.width - 1, step=1)
-    y = st.number_input("Y Coordinate (pixel)", min_value=0, max_value=img.height - 1, step=1)
+    # Flatten the image array to a list of RGB tuples
+    flat_pixels = img_array.reshape(-1, img_array.shape[-1])
+    pixel_tuples = [tuple(pixel) for pixel in flat_pixels]
 
-    if st.button("Count Pixels of This Color"):
-        selected_color = tuple(img_array[int(y), int(x)])
-        match_count = np.sum(np.all(img_array == selected_color, axis=-1))
+    # Count occurrences of each color
+    color_counts = Counter(pixel_tuples)
 
-        st.markdown(f"**Selected Color (RGB):** {selected_color}")
-        st.markdown(f"**Matching Pixels:** {match_count}")
+    # Get the 5 most common colors
+    most_common_colors = color_counts.most_common(5)
+
+    st.subheader("🖐️ Top 5 Colors and Their Counts:")
+    for i, (color, count) in enumerate(most_common_colors, start=1):
+        st.markdown(f"**{i}. Color (RGB): {color} → {count} pixels**")
+        st.color_picker(f"Preview Color {i}", value='#%02x%02x%02x' % color, key=i)

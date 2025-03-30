@@ -1,9 +1,9 @@
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw
 import numpy as np
 from collections import Counter
 
-st.title("🎨 Color Pixel Counter (Dalí Test Ready + Pixel Audit)")
+st.title("🎨 Color Pixel Counter")
 
 uploaded_file = st.file_uploader("Upload a pixelated image with 5 known colors", type=["png", "jpg", "jpeg"])
 
@@ -17,6 +17,7 @@ color_value_map = {
 }
 
 TOLERANCE = 10
+ENLARGEMENT_FACTOR = 20  # Controls how much the image is scaled for crisp pixel view
 
 def is_close(color1, color2, tolerance=TOLERANCE):
     return all(abs(a - b) <= tolerance for a, b in zip(color1, color2))
@@ -24,7 +25,6 @@ def is_close(color1, color2, tolerance=TOLERANCE):
 if uploaded_file:
     img = Image.open(uploaded_file).convert("RGB")
     img_array = np.array(img)
-    st.image(img, caption="Uploaded Image", use_container_width=True)
 
     flat_pixels = img_array.reshape(-1, img_array.shape[-1])
     pixel_tuples = [tuple(pixel) for pixel in flat_pixels]
@@ -57,6 +57,9 @@ if uploaded_file:
 
     if not unmatched_pixels:
         st.success("✅ All pixels in the image were matched to known colors. No pixels were left out.")
+        # Show original image enlarged with pixelated look
+        enlarged = img.resize((img.width * ENLARGEMENT_FACTOR, img.height * ENLARGEMENT_FACTOR), Image.NEAREST)
+        st.image(enlarged, caption="Crisp Enlarged Image", use_container_width=False)
     else:
         st.warning(f"⚠️ {len(unmatched_pixels)} pixel(s) were not matched to any of the defined colors.")
         unmatched_summary = Counter(unmatched_pixels).most_common(10)
@@ -65,3 +68,15 @@ if uploaded_file:
             hex_color = '#%02x%02x%02x' % color
             st.markdown(f"- {color} → {count} pixel(s)")
             st.color_picker("", value=hex_color, key=f"unmatched-{hex_color}", disabled=True, label_visibility="collapsed")
+
+        # Create a grayscale version with unmatched pixels highlighted
+        grayscale = img.convert("L").convert("RGB")
+        draw = ImageDraw.Draw(grayscale)
+        width, height = img.size
+        for idx in unmatched_indices:
+            x = idx % width
+            y = idx // width
+            draw.point((x, y), fill=img.getpixel((x, y)))
+
+        enlarged_highlight = grayscale.resize((width * ENLARGEMENT_FACTOR, height * ENLARGEMENT_FACTOR), Image.NEAREST)
+        st.image(enlarged_highlight, caption="Unmatched Pixels Highlighted (color on grayscale)", use_container_width=False)

@@ -25,7 +25,6 @@ color_values = {
 }
 
 TOLERANCE = 10
-ENLARGEMENT_FACTOR = 20
 MAX_PIXELS = 500 * 500
 
 def is_close(color1, color2, tolerance=TOLERANCE):
@@ -37,8 +36,9 @@ if uploaded_file:
     if img.width * img.height > MAX_PIXELS:
         st.error("🚫 Image too large. Please upload an image smaller than 500×500 pixels.")
     else:
-        img_array = np.array(img)
+        enlargement_factor = st.slider("🔍 Image Zoom (Pixel Size Multiplier)", min_value=1, max_value=50, value=20)
 
+        img_array = np.array(img)
         flat_pixels = img_array.reshape(-1, img_array.shape[-1])
         pixel_tuples = [tuple(pixel) for pixel in flat_pixels]
 
@@ -65,14 +65,13 @@ if uploaded_file:
 
         st.subheader(f"🧮 Total Image Value: {total_value}")
 
-        # Detect unmatched pixels
         total_pixels = len(pixel_tuples)
         unmatched_indices = [i for i in range(total_pixels) if i not in matched_indices]
         unmatched_pixels = [pixel_tuples[i] for i in unmatched_indices]
 
         if not unmatched_pixels:
             st.success("✅ All pixels in the image were matched to known colors. No pixels were left out.")
-            enlarged = img.resize((img.width * ENLARGEMENT_FACTOR, img.height * ENLARGEMENT_FACTOR), Image.NEAREST)
+            enlarged = img.resize((img.width * enlargement_factor, img.height * enlargement_factor), Image.NEAREST)
             st.image(enlarged, caption="Crisp Enlarged Image", use_container_width=False)
         else:
             st.warning(f"⚠️ {len(unmatched_pixels)} pixel(s) were not matched to any of the defined color families.")
@@ -83,7 +82,6 @@ if uploaded_file:
                 st.markdown(f"- {color} → {count} pixel(s)")
                 st.color_picker("", value=hex_color, key=f"unmatched-{hex_color}", disabled=True, label_visibility="collapsed")
 
-            # Highlight unmatched pixels
             grayscale = img.convert("L").convert("RGB")
             draw = ImageDraw.Draw(grayscale)
             width, height = img.size
@@ -92,5 +90,5 @@ if uploaded_file:
                 y = idx // width
                 draw.point((x, y), fill=img.getpixel((x, y)))
 
-            enlarged_highlight = grayscale.resize((width * ENLARGEMENT_FACTOR, height * ENLARGEMENT_FACTOR), Image.NEAREST)
+            enlarged_highlight = grayscale.resize((width * enlargement_factor, height * enlargement_factor), Image.NEAREST)
             st.image(enlarged_highlight, caption="Unmatched Pixels Highlighted (color on grayscale)", use_container_width=False)

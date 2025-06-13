@@ -117,8 +117,15 @@ elif mode == "Pixel Deleter":
         arr = np.array(img)
         h, w = arr.shape[:2]
 
-        # Delete every other pixel: make alpha = 0 if (x+y)%2==1
-        mask = np.fromfunction(lambda y, x: (x + y) % 2 == 0, (h, w))
+        # Option to invert checkerboard starting pixel
+        delete_top_left = st.checkbox("Delete the top-left pixel? (invert checkerboard)", value=False)
+        # Create mask: True for pixels to KEEP
+        if delete_top_left:
+            mask = np.fromfunction(lambda y, x: (x + y) % 2 == 1, (h, w))
+        else:
+            mask = np.fromfunction(lambda y, x: (x + y) % 2 == 0, (h, w))
+
+        # Apply mask to alpha channel
         arr[..., 3] = arr[..., 3] * mask.astype(np.uint8)
 
         result = Image.fromarray(arr)

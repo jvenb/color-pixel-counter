@@ -1,3 +1,4 @@
+st.sidebar.write("🚀 Pixel Toolkit v2 loaded")
 import streamlit as st
 from PIL import Image, ImageDraw
 import numpy as np

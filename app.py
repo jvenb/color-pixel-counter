@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageDraw
+from PIL import Image
 import numpy as np
 from collections import Counter
 from io import BytesIO
@@ -12,9 +12,7 @@ mode = st.sidebar.radio("Select tool:", tools)
 
 if mode == "Color Pixel Counter":
     st.header("🔢 Color Pixel Counter")
-    uploaded_file = st.file_uploader(
-        "Upload a pixelated image with 5 known colors", type=["png", "jpg", "jpeg"]
-    )
+    uploaded_file = st.file_uploader("Upload a pixelated image with 5 known colors", type=["png", "jpg", "jpeg"])
 
     # Define color families and values
     color_families = {
@@ -59,9 +57,8 @@ if mode == "Color Pixel Counter":
                 st.color_picker(f"Preview {label}", value=hexc, key=i, disabled=True, label_visibility="collapsed")
 
             st.subheader(f"🧮 Total Image Value: {total}")
-            total_px = flat.shape[0]
-            unmatched_idxs = [i for i in range(total_px) if i not in matched]
-            unmatched = [tuple(px) for i, px in enumerate(flat) if i in unmatched_idxs]
+            unmatched_idxs = [i for i in range(flat.shape[0]) if i not in matched]
+            unmatched = [tuple(flat[i]) for i in unmatched_idxs]
 
             if not unmatched:
                 st.success("✅ All pixels matched.")
@@ -87,69 +84,67 @@ elif mode == "Pixel Deleter":
     uploaded = st.file_uploader("Upload a pixelated image", type=["png","jpg","jpeg"])
     if uploaded:
         img = Image.open(uploaded).convert("RGBA")
-        arr = np.array(img)
-        h, w = arr.shape[:2]
+        # Initialize session state for chaining
+        if 'upload_name' not in st.session_state or st.session_state.upload_name != uploaded.name:
+            base = np.array(img)
+            st.session_state.upload_name = uploaded.name
+            st.session_state.orig_arr = base.copy()
+            st.session_state.work_arr = base.copy()
+        # Chain toggle and reset
+        chain = st.checkbox("Chain effects", value=False)
+        if st.button("Reset Effects"):
+            st.session_state.work_arr = st.session_state.orig_arr.copy()
+        # Choose source arr
+        src = st.session_state.work_arr.copy() if chain else st.session_state.orig_arr.copy()
+        h, w = src.shape[:2]
 
-        # Deletion patterns
-        pattern = st.selectbox(
-            "Select deletion pattern:",
-            ["Checkerboard", "Alternate Rows", "Alternate Columns",
-             "Diagonal Stripes", "Horizontal Stripes", "Vertical Stripes",
-             "Random Mask", "Circular Mask", "Border Only", "Custom Grid"]
-        )
-
+        pattern = st.selectbox("Select deletion pattern:", [
+            "Checkerboard", "Alternate Rows", "Alternate Columns",
+            "Diagonal Stripes", "Horizontal Stripes", "Vertical Stripes",
+            "Random Mask", "Circular Mask", "Border Only", "Custom Grid"
+        ])
+        # Build mask for each pattern
         if pattern == "Checkerboard":
             inv = st.checkbox("Delete top-left?", value=False)
             mask = np.fromfunction(lambda y, x: ((x+y)%2==1) if inv else ((x+y)%2==0), (h, w))
-
         elif pattern == "Alternate Rows":
             inv = st.checkbox("Delete first row?", value=False)
             mask = np.fromfunction(lambda y, x: (y%2==1) if inv else (y%2==0), (h, w))
-
         elif pattern == "Alternate Columns":
             inv = st.checkbox("Delete first column?", value=False)
             mask = np.fromfunction(lambda y, x: (x%2==1) if inv else (x%2==0), (h, w))
-
         elif pattern == "Diagonal Stripes":
             N = st.slider("Stripe width N:", 1, min(h, w)//2, 10)
             inv = st.checkbox("Invert diagonal?", value=False)
             mask = np.fromfunction(
-                lambda y, x: (((x-y) % (2*N) >= N) if inv else ((x-y) % (2*N) < N)),
-                (h, w)
+                lambda y, x: (((x-y)%(2*N)>=N) if inv else ((x-y)%(2*N)<N)), (h, w)
             )
-
         elif pattern == "Horizontal Stripes":
             M = st.slider("Stripe height M:", 1, h//2, 10)
             inv = st.checkbox("Invert horizontal?", value=False)
             mask = np.fromfunction(
-                lambda y, x: (((y//M)%2==1) if inv else ((y//M)%2==0)),
-                (h, w)
+                lambda y, x: (((y//M)%2==1) if inv else ((y//M)%2==0)), (h, w)
             )
-
         elif pattern == "Vertical Stripes":
             M = st.slider("Stripe width M:", 1, w//2, 10)
             inv = st.checkbox("Invert vertical?", value=False)
             mask = np.fromfunction(
-                lambda y, x: (((x//M)%2==1) if inv else ((x//M)%2==0)),
-                (h, w)
+                lambda y, x: (((x//M)%2==1) if inv else ((x//M)%2==0)), (h, w)
             )
-
         elif pattern == "Random Mask":
             pct = st.slider("% to delete:", 0, 100, 50)
             seed = st.number_input("Random seed:", value=0)
             rng = np.random.default_rng(seed)
             mask = rng.random((h, w)) >= (pct/100)
-
         elif pattern == "Circular Mask":
-            maxr = min(h, w) / 2
-            r = st.slider("Radius:", 0.0, maxr, maxr/2)
-            inv = st.checkbox("Delete inside?", value=False)
+            # Concentric circles alternating from center
+            R = st.slider("Ring thickness (pixels):", 1, min(h, w)//2, min(h, w)//4)
+            inv = st.checkbox("Delete center ring?", value=False)
             cy, cx = h/2, w/2
             mask = np.fromfunction(
-                lambda y, x: (((x-cx)**2 + (y-cy)**2) > r**2) if not inv else (((x-cx)**2 + (y-cy)**2) <= r**2),
+                lambda y, x: ((np.floor(np.sqrt((x-cx)**2 + (y-cy)**2)/R)%2==0) if not inv else (np.floor(np.sqrt((x-cx)**2 + (y-cy)**2)/R)%2==1)),
                 (h, w)
             )
-
         elif pattern == "Border Only":
             K = st.slider("Border width K:", 0, min(h, w)//2, 10)
             inv = st.checkbox("Delete border?", value=False)
@@ -157,8 +152,7 @@ elif mode == "Pixel Deleter":
                 lambda y, x: ((x>=K)&(x< w-K)&(y>=K)&(y< h-K)) if not inv else ~((x>=K)&(x< w-K)&(y>=K)&(y< h-K)),
                 (h, w)
             )
-
-        elif pattern == "Custom Grid":
+        else:  # Custom Grid
             A = st.slider("Block width A:", 1, w, 10)
             B = st.slider("Block height B:", 1, h, 10)
             inv = st.checkbox("Invert grid?", value=False)
@@ -167,11 +161,14 @@ elif mode == "Pixel Deleter":
                 (h, w)
             )
 
-        # Apply mask on alpha channel
+        # Apply mask to alpha channel
         m = mask.astype(np.uint8)
-        arr[..., 3] = arr[..., 3] * m
-
-        result = Image.fromarray(arr)
+        src[..., 3] = src[..., 3] * m
+        # Update working array if chaining
+        if chain:
+            st.session_state.work_arr = src.copy()
+        # Display and download
+        result = Image.fromarray(src)
         st.image(result, caption="Processed Image", use_container_width=False)
         buf = BytesIO()
         result.save(buf, format="PNG")
@@ -182,3 +179,4 @@ elif mode == "Pixel Deleter":
             file_name="pixel_deleted.png",
             mime="image/png"
         )
+

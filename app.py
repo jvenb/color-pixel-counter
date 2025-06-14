@@ -6,8 +6,6 @@ from io import BytesIO
 
 # Configure wide layout
 st.set_page_config(layout="wide")
-
-# App title
 st.title("🎨 Pixel Toolkit")
 
 # Sidebar controls
@@ -30,7 +28,7 @@ TOLERANCE = 10
 MAX_PIXELS = 500 * 500
 
 def is_close(c1, c2):
-    return all(abs(a-b) <= TOLERANCE for a, b in zip(c1, c2))
+    return all(abs(a - b) <= TOLERANCE for a, b in zip(c1, c2))
 
 # --- Rubik Mosaic setup ---
 rubik_colors = {
@@ -42,19 +40,23 @@ rubik_colors = {
     "Green": (0,155,72)
 }
 opposites = {
-    "White":"Yellow", "Yellow":"White",
-    "Red":"Orange", "Orange":"Red",
-    "Blue":"Green", "Green":"Blue"
+    "White": "Yellow", "Yellow": "White",
+    "Red": "Orange", "Orange": "Red",
+    "Blue": "Green", "Green": "Blue"
 }
 
 def nearest_rubik_color(px):
-    d = {name: sum((c-p)**2 for c,p in zip(rgb, px)) for name, rgb in rubik_colors.items()}
+    # Euclidean distance to each cube face color
+    d = {name: sum((c - p)**2 for c, p in zip(rgb, px))
+         for name, rgb in rubik_colors.items()}
     return min(d, key=d.get)
 
 # --- Mode 1: Color Pixel Counter ---
 if tool == "Color Pixel Counter":
     st.header("🔢 Color Pixel Counter")
-    uploaded = st.sidebar.file_uploader("Upload a pixelated image (≤500×500)", type=["png","jpg","jpeg"])
+    uploaded = st.sidebar.file_uploader(
+        "Upload a pixelated image (≤500×500)", type=["png","jpg","jpeg"]
+    )
     if uploaded:
         img = Image.open(uploaded).convert("RGB")
         w, h = img.size
@@ -95,68 +97,75 @@ if tool == "Color Pixel Counter":
 # --- Mode 2: Pixel Deleter ---
 elif tool == "Pixel Deleter":
     st.header("🗑️ Pixel Deleter")
-    uploaded = st.sidebar.file_uploader("Upload a pixelated image", type=["png","jpg","jpeg"])
+    uploaded = st.sidebar.file_uploader(
+        "Upload a pixelated image", type=["png","jpg","jpeg"]
+    )
     if uploaded:
         img = Image.open(uploaded).convert("RGBA")
+        # Initialize session state
         if 'upload_name' not in st.session_state or st.session_state.upload_name != uploaded.name:
             st.session_state.upload_name = uploaded.name
             st.session_state.orig_arr = np.array(img)
             st.session_state.work_arr = st.session_state.orig_arr.copy()
             st.session_state.undo_stack = []
+        # Reset & Undo
         if st.sidebar.button("Reset Effects"):
             st.session_state.work_arr = st.session_state.orig_arr.copy()
             st.session_state.undo_stack = []
         if st.sidebar.button("Undo Last Effect") and st.session_state.undo_stack:
             st.session_state.work_arr = st.session_state.undo_stack.pop()
+        # Chaining toggle
         chain = st.sidebar.checkbox("Chain effects", False)
         base = st.session_state.work_arr if chain else st.session_state.orig_arr.copy()
         h, w = base.shape[:2]
-        pattern = st.sidebar.selectbox("Select pattern:", [
-            "Original","Checkerboard","Alternate Rows","Alternate Columns",
-            "Diagonal Stripes","Horizontal Stripes","Vertical Stripes",
-            "Random Mask","Concentric Rings","Border Only","Custom Grid"
-        ])
+        pattern = st.sidebar.selectbox(
+            "Select pattern:", [
+                "Original","Checkerboard","Alternate Rows","Alternate Columns",
+                "Diagonal Stripes","Horizontal Stripes","Vertical Stripes",
+                "Random Mask","Concentric Rings","Border Only","Custom Grid"
+            ]
+        )
         mask = np.ones((h, w), dtype=bool)
         if pattern == "Checkerboard":
             inv = st.sidebar.checkbox("Invert checkerboard", False)
-            mask = np.fromfunction(lambda y, x: ((x+y)%2 == (1 if inv else 0)), (h, w))
+            mask = np.fromfunction(lambda y, x: ((x + y) % 2 == (1 if inv else 0)), (h, w))
         elif pattern == "Alternate Rows":
             inv = st.sidebar.checkbox("Invert rows", False)
-            mask = np.fromfunction(lambda y, x: (y%2 == (1 if inv else 0)), (h, w))
+            mask = np.fromfunction(lambda y, x: (y % 2 == (1 if inv else 0)), (h, w))
         elif pattern == "Alternate Columns":
             inv = st.sidebar.checkbox("Invert cols", False)
-            mask = np.fromfunction(lambda y, x: (x%2 == (1 if inv else 0)), (h, w))
+            mask = np.fromfunction(lambda y, x: (x % 2 == (1 if inv else 0)), (h, w))
         elif pattern == "Diagonal Stripes":
             N = st.sidebar.slider("Stripe width N", 1, min(h, w)//2, 10)
             inv = st.sidebar.checkbox("Invert diagonal", False)
-            mask = np.fromfunction(lambda y, x: (((abs(x-y) % (2*N)) < N) ^ inv), (h, w))
+            mask = np.fromfunction(lambda y, x: (((abs(x - y) % (2 * N)) < N) ^ inv), (h, w))
         elif pattern == "Horizontal Stripes":
             M = st.sidebar.slider("Stripe height M", 1, h//2, 10)
             inv = st.sidebar.checkbox("Invert horiz", False)
-            mask = np.fromfunction(lambda y, x: (((y//M)%2)==0) ^ inv, (h, w))
+            mask = np.fromfunction(lambda y, x: (((y // M) % 2) == 0) ^ inv, (h, w))
         elif pattern == "Vertical Stripes":
             M = st.sidebar.slider("Stripe width M", 1, w//2, 10)
             inv = st.sidebar.checkbox("Invert vert", False)
-            mask = np.fromfunction(lambda y, x: (((x//M)%2)==0) ^ inv, (h, w))
+            mask = np.fromfunction(lambda y, x: (((x // M) % 2) == 0) ^ inv, (h, w))
         elif pattern == "Random Mask":
             pct = st.sidebar.slider("Delete %", 0, 100, 50)
             seed = st.sidebar.number_input("Seed", value=0)
             rng = np.random.default_rng(seed)
-            mask = rng.random((h, w)) >= pct/100
+            mask = rng.random((h, w)) >= pct / 100
         elif pattern == "Concentric Rings":
             R = st.sidebar.slider("Ring thickness", 1, min(h, w)//4, 10)
             inv = st.sidebar.checkbox("Invert rings", False)
             cy, cx = h/2, w/2
-            mask = np.fromfunction(lambda y, x: ((np.floor(np.hypot(x-cx, y-cy)/R)%2)==0) ^ inv, (h, w))
+            mask = np.fromfunction(lambda y, x: ((np.floor(np.hypot(x-cx, y-cy)/R) % 2) == 0) ^ inv, (h, w))
         elif pattern == "Border Only":
             K = st.sidebar.slider("Border width K", 0, min(h, w)//2, 10)
             inv = st.sidebar.checkbox("Invert border", False)
-            mask = np.fromfunction(lambda y, x: (((x<K)|(x>=w-K)|(y<K)|(y>=h-K))) ^ inv, (h, w))
+            mask = np.fromfunction(lambda y, x: (((x < K) | (x >= w-K) | (y < K) | (y >= h-K))) ^ inv, (h, w))
         else:
             A = st.sidebar.slider("Block width A", 1, w, 10)
             B = st.sidebar.slider("Block height B", 1, h, 10)
             inv = st.sidebar.checkbox("Invert grid", False)
-            mask = np.fromfunction(lambda y, x: (((x//A + y//B)%2)==0) ^ inv, (h, w))
+            mask = np.fromfunction(lambda y, x: (((x//A + y//B) % 2) == 0) ^ inv, (h, w))
         preview = base.copy()
         preview[...,3] *= mask.astype(np.uint8)
         if st.sidebar.button("Apply Effect"):
@@ -183,8 +192,8 @@ else:
         h, w = inv_img.size[1], inv_img.size[0]
         inv_arr = np.array(inv_img)
         tgt_arr = np.array(tgt_img)
-        inv_map = np.empty((h,w),dtype=object)
-        tgt_map = np.empty((h,w),dtype=object)
+        inv_map = np.empty((h,w), dtype=object)
+        tgt_map = np.empty((h,w), dtype=object)
         for y in range(h):
             for x in range(w):
                 inv_map[y,x] = nearest_rubik_color(tuple(inv_arr[y,x]))
@@ -194,16 +203,16 @@ else:
             st.error(f"Invariant violated: center must be {inv_map[cy,cx]}")
         else:
             st.success("Center invariant holds.")
-        violations=[]
-        for name,opp in opposites.items():
-            m1 = (tgt_map==name)
-            m2 = (tgt_map==opp)
+        violations = []
+        for name, opp in opposites.items():
+            m1 = (tgt_map == name)
+            m2 = (tgt_map == opp)
             for y in range(h):
                 for x in range(w-1):
                     if m1[y,x] and m2[y,x+1]:
                         violations.append(((x,y),(x+1,y),name,opp))
         if violations:
-            st.warning(f"Found {len(violations)} opposite-color adjacency violation(s)."")
+            st.warning(f"Found {len(violations)} opposite-color adjacency violation(s).")
         else:
             st.success("No opposite-color adjacency violations.")
         disp_arr = np.zeros((h,w,3), dtype=np.uint8)
@@ -214,7 +223,7 @@ else:
         disp = disp_img.resize((w*display_zoom, h*display_zoom), Image.NEAREST)
         st.image(disp, caption="Target → Rubik colors", use_container_width=False)
         st.markdown("### Sticker counts on target")
-        for color,cnt in Counter(tgt_map.flatten()).items():
+        for color, cnt in Counter(tgt_map.flatten()).items():
             st.write(f"- {color}: {cnt}")
         buf = BytesIO()
         disp_img.save(buf, format="PNG")

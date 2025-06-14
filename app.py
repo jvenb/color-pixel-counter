@@ -17,11 +17,11 @@ display_zoom = st.sidebar.slider("Display Zoom Multiplier", 1, 50, 20)
 
 # --- Color Pixel Counter setup ---
 color_families = {
-    "White": {(252,255,251),(255,255,255)},
-    "Yellow": {(242,230,0)},
-    "Orange": {(238,102,7),(237,100,3)},
-    "Red": {(192,0,37),(190,0,35)},
-    "Blue": {(0,61,174),(0,61,167)}
+    "White": {(242,246,239)},
+    "Yellow": {(239,223,42)},
+    "Orange": {(239,125,35)},
+    "Red": {(188,39,55)},
+    "Blue": {(19,80,152)}
 }
 color_values = {"White":1, "Yellow":2, "Orange":3, "Red":4, "Blue":5}
 TOLERANCE = 10
@@ -32,12 +32,12 @@ def is_close(c1, c2):
 
 # --- Rubik Mosaic setup ---
 rubik_colors = {
-    "White": (255,255,255),
-    "Yellow": (255,213,0),
-    "Red": (196,30,58),
-    "Orange": (255,88,0),
-    "Blue": (0,70,173),
-    "Green": (0,155,72)
+    "White": (0xf2, 0xf6, 0xef),
+    "Yellow": (0xef, 0xdf, 0x2a),
+    "Red": (0xbc, 0x27, 0x37),
+    "Orange": (0xef, 0x7d, 0x23),
+    "Blue": (0x13, 0x50, 0x98),
+    "Green": (0x0a, 0x8c, 0x00)
 }
 opposites = {
     "White": "Yellow", "Yellow": "White",
@@ -102,19 +102,16 @@ elif tool == "Pixel Deleter":
     )
     if uploaded:
         img = Image.open(uploaded).convert("RGBA")
-        # Initialize session state
         if 'upload_name' not in st.session_state or st.session_state.upload_name != uploaded.name:
             st.session_state.upload_name = uploaded.name
             st.session_state.orig_arr = np.array(img)
             st.session_state.work_arr = st.session_state.orig_arr.copy()
             st.session_state.undo_stack = []
-        # Reset & Undo
         if st.sidebar.button("Reset Effects"):
             st.session_state.work_arr = st.session_state.orig_arr.copy()
             st.session_state.undo_stack = []
         if st.sidebar.button("Undo Last Effect") and st.session_state.undo_stack:
             st.session_state.work_arr = st.session_state.undo_stack.pop()
-        # Chaining toggle
         chain = st.sidebar.checkbox("Chain effects", False)
         base = st.session_state.work_arr if chain else st.session_state.orig_arr.copy()
         h, w = base.shape[:2]
@@ -192,8 +189,8 @@ else:
         h, w = inv_img.size[1], inv_img.size[0]
         inv_arr = np.array(inv_img)
         tgt_arr = np.array(tgt_img)
-        inv_map = np.empty((h,w), dtype=object)
-        tgt_map = np.empty((h,w), dtype=object)
+        inv_map = np.empty((h,w),                     dtype=object)
+        tgt_map = np.empty((h,w),                     dtype=object)
         for y in range(h):
             for x in range(w):
                 inv_map[y,x] = nearest_rubik_color(tuple(inv_arr[y,x]))

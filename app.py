@@ -133,7 +133,8 @@ elif tool == "Pixel Deleter":
                 h_exp, w_exp = exp.shape[:2]
                 # Determine indices per row
                 if distribution == "Uniform":
-                    idx = rng.choice(w_exp, size=(h, w), replace=False)
+                    # random pick per pixel independently
+                    idx = rng.integers(0, w_exp, size=(h, w))
                 elif distribution == "Even":
                     positions = np.linspace(0, w_exp-1, w)
                     idx = np.tile(np.round(positions).astype(int), (h,1))

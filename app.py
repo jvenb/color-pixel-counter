@@ -38,6 +38,26 @@ MAX_PIXELS = 500 * 500
 def is_close(c1, c2):
     return all(abs(a-b) <= TOLERANCE for a,b in zip(c1,c2))
 
+# --- Rubik-style palette setup ---
+rubik_colors = {
+    "White":  (0xf2,0xf6,0xef),
+    "Yellow": (0xef,0xdf,0x2a),
+    "Red":    (0xbc,0x27,0x37),
+    "Orange": (0xef,0x7d,0x23),
+    "Blue":   (0x13,0x50,0x98),
+    "Green":  (0x0a,0x8c,0x00)
+}
+opposites = {
+    "White":"Yellow","Yellow":"White",
+    "Red":"Orange","Orange":"Red",
+    "Blue":"Green","Green":"Blue"
+}
+
+def nearest_rubik_color(px):
+    d = {name: sum((c-p)**2 for c,p in zip(rgb,px)) for name,rgb in rubik_colors.items()}
+    return min(d, key=d.get)
+
+# --- Mode 1: Color Pixel Counter ---
 if tool == "Color Pixel Counter":
     st.header("🔢 Color Pixel Counter")
     uploaded = st.sidebar.file_uploader(
@@ -81,7 +101,7 @@ if tool == "Color Pixel Counter":
             disp = img.resize((w*display_zoom, h*display_zoom), Image.NEAREST)
             st.image(disp, caption="Crisp Enlarged Image", use_container_width=False)
 
-# --- Pixel Deleter / Adder ---
+# --- Mode 2: Pixel Deleter / Adder ---
 elif tool == "Pixel Deleter":
     st.header("🗑️ Pixel Deleter / ➕ Pixel Adder")
     uploaded = st.sidebar.file_uploader("Upload a pixelated image", type=["png","jpg","jpeg"])
@@ -93,8 +113,7 @@ elif tool == "Pixel Deleter":
             st.session_state.work_arr = st.session_state.orig_arr.copy()
             st.session_state.undo_stack = []
         if st.sidebar.button("Reset Effects"):
-            st.session_state.work_arr = st.session_state.orig_arr.copy()
-            st.session_state.undo_stack = []
+            st.session_state.work_arr = st.session_state.orig_arr.copy(); st.session_state.undo_stack = []
         if st.sidebar.button("Undo Last Effect") and st.session_state.undo_stack:
             st.session_state.work_arr = st.session_state.undo_stack.pop()
 
@@ -113,12 +132,10 @@ elif tool == "Pixel Deleter":
         )
 
         if pattern == "Pixel Adder":
-            # Duplicate each pixel horizontally: triple width
             arr = base.copy()
-            preview = np.repeat(arr, 3, axis=1)
-
+            dup = st.sidebar.slider("Duplicates per side", 1, 10, 1)
+            preview = np.repeat(arr, dup*2+1, axis=1)
         else:
-            # Build a boolean mask as before
             mask = np.ones((h, w), bool)
             if pattern == "Checkerboard":
                 inv = st.sidebar.checkbox("Invert checkerboard", False)
@@ -140,7 +157,7 @@ elif tool == "Pixel Deleter":
             elif pattern == "Vertical Stripes":
                 M = st.sidebar.slider("Stripe width M", 1, w//2, 10)
                 inv = st.sidebar.checkbox("Invert vert", False)
-                mask = np.fromfunction(lambda y,x: (((x//M)%2)==0)^inv, (h, w))
+               	mask = np.fromfunction(lambda y,x: (((x//M)%2)==0)^inv, (h, w))
             elif pattern == "Random Mask":
                 pct = st.sidebar.slider("Delete %", 0, 100, 50)
                 seed = st.sidebar.number_input("Seed", 0)
@@ -155,7 +172,8 @@ elif tool == "Pixel Deleter":
                 K = st.sidebar.slider("Border width K", 0, min(h, w)//2, 10)
                 inv = st.sidebar.checkbox("Invert border", False)
                 mask = np.fromfunction(lambda y,x: (((x<K)|(x>=w-K)|(y<K)|(y>=h-K)))^inv, (h, w))
-            else:  # Custom Grid
+            else:
+                # Custom Grid
                 A = st.sidebar.slider("Block width A", 1, w, 10)
                 B = st.sidebar.slider("Block height B", 1, h, 10)
                 inv = st.sidebar.checkbox("Invert grid", False)
@@ -168,18 +186,16 @@ elif tool == "Pixel Deleter":
             st.session_state.undo_stack.append(st.session_state.work_arr.copy())
             st.session_state.work_arr = preview.copy()
 
-        # Display preview at zoomed resolution
         disp_img = Image.fromarray(preview)
         disp = disp_img.resize((disp_img.width * display_zoom, disp_img.height * display_zoom), Image.NEAREST)
         st.image(disp, caption="Image Preview", use_container_width=False)
 
-        # Download button
         buf = BytesIO()
         Image.fromarray(preview).save(buf, format="PNG")
         buf.seek(0)
         st.sidebar.download_button("Download PNG", data=buf, file_name="output.png", mime="image/png")
 
-# — Mode 3: Rubik Mosaic Checker —
+# --- Mode 3: Rubik Mosaic Checker ---
 else:
     st.header("🔍 Rubik Mosaic Checker")
     st.sidebar.header("Rubik Mosaic Checker Settings")
@@ -193,7 +209,6 @@ else:
         h, w = inv_img.size[1], inv_img.size[0]
         inv_arr = np.array(inv_img); tgt_arr = np.array(tgt_img)
 
-        # Map colors to names
         inv_map = np.empty((h, w), dtype=object)
         tgt_map = np.empty((h, w), dtype=object)
         for y in range(h):
@@ -201,17 +216,14 @@ else:
                 inv_map[y,x] = nearest_rubik_color(tuple(inv_arr[y,x]))
                 tgt_map[y,x] = nearest_rubik_color(tuple(tgt_arr[y,x]))
 
-        # Flip target horizontally for opposite-face alignment
         tgt_map = np.fliplr(tgt_map)
 
-        # Center invariant check
         cy, cx = h//2, w//2
         if tgt_map[cy,cx] != opposites[inv_map[cy,cx]]:
             st.error(f"Invariant violated: center must be {opposites[inv_map[cy,cx]]}")
         else:
             st.success("Center invariant holds. Double-face mosaic is feasible!")
 
-        # Display the two block-color maps side-by-side
         disp_inv = Image.fromarray(np.uint8([[rubik_colors[inv_map[y,x]] for x in range(w)] for y in range(h)]))
         disp_tgt = Image.fromarray(np.uint8([[rubik_colors[tgt_map[y,x]] for x in range(w)] for y in range(h)]))
         disp = Image.fromarray(
@@ -220,12 +232,10 @@ else:
         )
         st.image(disp, caption="Front (A) → Back (B, mirrored)", use_container_width=False)
 
-        # Sticker counts on target
         st.markdown("### Sticker counts on target")
         for color, cnt in Counter(tgt_map.flatten()).items():
             st.write(f"- {color}: {cnt}")
 
-        # Download mapped PNG
         buf = BytesIO()
         disp_tgt.save(buf, format="PNG"); buf.seek(0)
         st.sidebar.download_button("Download mapped PNG", data=buf, file_name="mapped_rubik.png", mime="image/png")

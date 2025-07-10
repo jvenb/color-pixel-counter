@@ -67,11 +67,9 @@ if tool == "Color Pixel Counter":
             matched = set()
             for label,fam in color_families.items():
                 val = color_values[label]
-                cnt = sum(any(is_close(px,v) for v in fam)
-                          for px in flat)
+                cnt = sum(any(is_close(px,v) for v in fam) for px in flat)
                 total += cnt*val
-                matched.update(i for i,px in enumerate(flat)
-                               if any(is_close(px,v) for v in fam))
+                matched.update(i for i,px in enumerate(flat) if any(is_close(px,v) for v in fam))
                 sample = next(iter(fam))
                 hexc = f"#{sample[0]:02x}{sample[1]:02x}{sample[2]:02x}"
                 st.markdown(f"**{label}: {cnt} px × {val} = {cnt*val}**")
@@ -81,8 +79,7 @@ if tool == "Color Pixel Counter":
             if len(matched)==len(flat):
                 st.success("✅ All pixels matched!")
             else:
-                unmatched = [tuple(flat[i]) for i in range(len(flat))
-                             if i not in matched]
+                unmatched = [tuple(flat[i]) for i in range(len(flat)) if i not in matched]
                 st.warning(f"⚠️ {len(unmatched)} unmatched pixels.")
                 top = Counter(unmatched).most_common(10)
                 st.markdown("### ❌ Top 10 Unmatched Colors")
@@ -101,8 +98,7 @@ elif tool == "Pixel Deleter":
     uploaded = st.sidebar.file_uploader("Upload a pixelated image", type=["png","jpg","jpeg"])
     if uploaded:
         img = Image.open(uploaded).convert("RGBA")
-        if ('name' not in st.session_state
-                or st.session_state.name!=uploaded.name):
+        if ('name' not in st.session_state or st.session_state.name!=uploaded.name):
             st.session_state.name=uploaded.name
             st.session_state.orig=np.array(img)
             st.session_state.current=st.session_state.orig.copy()
@@ -122,76 +118,88 @@ elif tool == "Pixel Deleter":
 
         if mode=="Pixel Adder":
             dup = st.sidebar.slider("Duplicates per side",1,10,1)
-            maintain = st.sidebar.checkbox("Maintain width")
+            maintain = st.sidebar.checkbox("Maintain original width")
             arr = base.copy()
             exp = np.repeat(arr, 2*dup+1, axis=1)
             if maintain:
                 seed = st.sidebar.number_input("Seed",0)
+                distribution = st.sidebar.selectbox("Distribution", [
+                    "Uniform Random","Evenly Spaced","Jittered"
+                ])
                 rng = np.random.default_rng(seed)
-                idx = np.sort(rng.choice(exp.shape[1], size=w, replace=False))
-                preview = exp[:,idx,:]
+                h_exp, w_exp = exp.shape[:2]
+                if distribution == "Uniform Random":
+                    idx = rng.choice(w_exp, size=w, replace=False)
+                else:
+                    spacing = w_exp / w
+                    positions = np.arange(w) * spacing + spacing/2
+                    if distribution == "Jittered":
+                        jitter = rng.uniform(-spacing/2, spacing/2, size=w)
+                        positions = positions + jitter
+                    idx = np.clip(np.round(positions), 0, w_exp-1).astype(int)
+                idx.sort()
+                preview = exp[:, idx, :]
             else:
                 preview = exp
         else:
-            # Build mask
-            inv=False
+            # existing deletion patterns ... (unchanged)
+            mask = np.ones((h, w), bool)
             if mode=="Checkerboard":
                 inv = st.sidebar.checkbox("Invert")
-                mask = np.fromfunction(lambda y,x: ((x+y)%2==int(inv)),(h,w))
+                mask = np.fromfunction(lambda y,x: ((x+y)%2==int(inv)), (h,w))
             elif mode=="Alt Rows":
-                inv=st.sidebar.checkbox("Invert")
-                mask = np.fromfunction(lambda y,x: (y%2==int(inv)),(h,w))
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(lambda y,x: (y%2==int(inv)), (h,w))
             elif mode=="Alt Cols":
-                inv=st.sidebar.checkbox("Invert")
-                mask = np.fromfunction(lambda y,x: (x%2==int(inv)),(h,w))
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(lambda y,x: (x%2==int(inv)), (h,w))
             elif mode=="Diagonal":
-                N=st.sidebar.slider("Width N",1,min(h,w)//2,10)
-                inv=st.sidebar.checkbox("Invert")
-                mask=np.fromfunction(
+                N = st.sidebar.slider("Width N",1,min(h,w)//2,10)
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(
                     lambda y,x: (((abs(x-y)%(2*N))<N) ^ inv),(h,w))
             elif mode=="H Stripes":
-                M=st.sidebar.slider("Height M",1,h//2,10)
-                inv=st.sidebar.checkbox("Invert")
-                mask=np.fromfunction(
+                M = st.sidebar.slider("Height M",1,h//2,10)
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(
                     lambda y,x: (((y//M)%2)==0) ^ inv,(h,w))
             elif mode=="V Stripes":
-                M=st.sidebar.slider("Width M",1,w//2,10)
-                inv=st.sidebar.checkbox("Invert")
-                mask=np.fromfunction(
+                M = st.sidebar.slider("Width M",1,w//2,10)
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(
                     lambda y,x: (((x//M)%2)==0) ^ inv,(h,w))
             elif mode=="Random Mask":
-                pct=st.sidebar.slider("Delete %",0,100,50)
-                seed=st.sidebar.number_input("Seed",0)
-                rng=np.random.default_rng(seed)
-                mask=rng.random((h,w))>=pct/100
+                pct = st.sidebar.slider("Delete %",0,100,50)
+                seed = st.sidebar.number_input("Seed",0)
+                rng = np.random.default_rng(seed)
+                mask = rng.random((h,w))>=pct/100
             elif mode=="Rings":
-                R=st.sidebar.slider("Thickness",1,min(h,w)//4,10)
-                inv=st.sidebar.checkbox("Invert")
+                R = st.sidebar.slider("Thickness",1,min(h,w)//4,10)
+                inv = st.sidebar.checkbox("Invert")
                 cy, cx = h/2, w/2
-                mask=np.fromfunction(
+                mask = np.fromfunction(
                     lambda y,x: (((np.floor(np.hypot(x-cx,y-cy)/R)%2)==0) ^ inv),(h,w))
             elif mode=="Border":
-                K=st.sidebar.slider("Width",0,min(h,w)//2,10)
-                inv=st.sidebar.checkbox("Invert")
-                mask=np.fromfunction(
+                K = st.sidebar.slider("Width",0,min(h,w)//2,10)
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(
                     lambda y,x: (((x<K)|(x>=w-K)|(y<K)|(y>=h-K)) ^ inv),(h,w))
             else:  # Grid
-                A=st.sidebar.slider("Block W",1,w,10)
-                B=st.sidebar.slider("Block H",1,h,10)
-                inv=st.sidebar.checkbox("Invert")
-                mask=np.fromfunction(
+                A = st.sidebar.slider("Block W",1,w,10)
+                B = st.sidebar.slider("Block H",1,h,10)
+                inv = st.sidebar.checkbox("Invert")
+                mask = np.fromfunction(
                     lambda y,x: (((x//A + y//B)%2)==0) ^ inv,(h,w))
             preview = base.copy()
             preview[...,3] *= mask.astype(np.uint8)
 
-        if st.sidebar.button("Apply"):
+        if st.sidebar.button("Apply"):  
             st.session_state.undo.append(st.session_state.current.copy())
             st.session_state.current = preview.copy()
         disp = Image.fromarray(preview)
-        st.image(disp.resize((disp.width*display_zoom,
-                              disp.height*display_zoom),
+        st.image(disp.resize((disp.width*display_zoom,disp.height*display_zoom),
                               Image.NEAREST),caption="Preview")
-        buf=BytesIO(); Image.fromarray(preview).save(buf,format="PNG"); buf.seek(0)
+        buf = BytesIO(); Image.fromarray(preview).save(buf,format="PNG"); buf.seek(0)
         st.sidebar.download_button("Download PNG",data=buf,
             file_name="output.png",mime="image/png")
 
@@ -201,28 +209,28 @@ else:
     inv_file = st.sidebar.file_uploader("Invariant (A)",type=["png","jpg","jpeg"])
     tgt_file = st.sidebar.file_uploader("Target (B)",type=["png","jpg","jpeg"])
     if inv_file and tgt_file:
-        inv=Image.open(inv_file).convert("RGB")
-        tgt=Image.open(tgt_file).convert("RGB")
-        if inv.size!=tgt.size: tgt=tgt.resize(inv.size,Image.NEAREST)
-        w,h=inv.size; inv_arr, tgt_arr = np.array(inv), np.array(tgt)
-        inv_map=np.empty((h,w),object); tgt_map=np.empty((h,w),object)
+        inv = Image.open(inv_file).convert("RGB")
+        tgt = Image.open(tgt_file).convert("RGB")
+        if inv.size != tgt.size: tgt = tgt.resize(inv.size, Image.NEAREST)
+        w,h = inv.size; inv_arr, tgt_arr = np.array(inv), np.array(tgt)
+        inv_map = np.empty((h,w),object); tgt_map = np.empty((h,w),object)
         for y in range(h):
             for x in range(w):
-                inv_map[y,x]=nearest_rubik_color(tuple(inv_arr[y,x]))
-                tgt_map[y,x]=nearest_rubik_color(tuple(tgt_arr[y,x]))
-        tgt_map=np.fliplr(tgt_map)
+                inv_map[y,x] = nearest_rubik_color(tuple(inv_arr[y,x]))
+                tgt_map[y,x] = nearest_rubik_color(tuple(tgt_arr[y,x]))
+        tgt_map = np.fliplr(tgt_map)
         cy, cx = h//2, w//2
-        if tgt_map[cy,cx]!=opposites[inv_map[cy,cx]]:
+        if tgt_map[cy,cx] != opposites[inv_map[cy,cx]]:
             st.error(f"Invariant violated: center must be {opposites[inv_map[cy,cx]]}")
         else:
             st.success("✅ Opposite-face mosaic feasible!")
         dispA = np.uint8([[rubik_colors[inv_map[y,x]] for x in range(w)] for y in range(h)])
         dispB = np.uint8([[rubik_colors[tgt_map[y,x]] for x in range(w)] for y in range(h)])
-        sideA=Image.fromarray(dispA).resize((w*display_zoom,h*display_zoom),Image.NEAREST)
-        sideB=Image.fromarray(dispB).resize((w*display_zoom,h*display_zoom),Image.NEAREST)
+        sideA = Image.fromarray(dispA).resize((w*display_zoom,h*display_zoom),Image.NEAREST)
+        sideB = Image.fromarray(dispB).resize((w*display_zoom,h*display_zoom),Image.NEAREST)
         st.image(np.hstack([np.array(sideA),np.array(sideB)]),use_container_width=False)
         st.markdown("### Sticker counts on B")
         for c, cnt in Counter(tgt_map.flatten()).items(): st.write(f"- {c}: {cnt}")
-        buf=BytesIO(); Image.fromarray(dispB).save(buf,format="PNG"); buf.seek(0)
+        buf = BytesIO(); Image.fromarray(dispB).save(buf,format="PNG"); buf.seek(0)
         st.sidebar.download_button("Download mapped PNG",data=buf,
             file_name="mapped_rubik.png",mime="image/png")

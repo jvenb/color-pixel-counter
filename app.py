@@ -134,7 +134,17 @@ elif tool == "Pixel Deleter":
         if pattern == "Pixel Adder":
             arr = base.copy()
             dup = st.sidebar.slider("Duplicates per side", 1, 10, 1)
-            preview = np.repeat(arr, dup*2+1, axis=1)
+            maintain = st.sidebar.checkbox("Maintain original width", False)
+            if maintain:
+                seed = st.sidebar.number_input("Deletion seed", 0)
+                expanded = np.repeat(arr, 2*dup+1, axis=1)
+                h_exp, w_exp = expanded.shape[:2]
+                rng = np.random.default_rng(seed)
+                idx = rng.choice(w_exp, size=w, replace=False)
+                idx.sort()
+                preview = expanded[:, idx, :]
+            else:
+                preview = np.repeat(arr, 2*dup+1, axis=1)
         else:
             mask = np.ones((h, w), bool)
             if pattern == "Checkerboard":
@@ -157,7 +167,7 @@ elif tool == "Pixel Deleter":
             elif pattern == "Vertical Stripes":
                 M = st.sidebar.slider("Stripe width M", 1, w//2, 10)
                 inv = st.sidebar.checkbox("Invert vert", False)
-               	mask = np.fromfunction(lambda y,x: (((x//M)%2)==0)^inv, (h, w))
+                mask = np.fromfunction(lambda y,x: (((x//M)%2)==0)^inv, (h, w))
             elif pattern == "Random Mask":
                 pct = st.sidebar.slider("Delete %", 0, 100, 50)
                 seed = st.sidebar.number_input("Seed", 0)
@@ -173,12 +183,10 @@ elif tool == "Pixel Deleter":
                 inv = st.sidebar.checkbox("Invert border", False)
                 mask = np.fromfunction(lambda y,x: (((x<K)|(x>=w-K)|(y<K)|(y>=h-K)))^inv, (h, w))
             else:
-                # Custom Grid
                 A = st.sidebar.slider("Block width A", 1, w, 10)
                 B = st.sidebar.slider("Block height B", 1, h, 10)
                 inv = st.sidebar.checkbox("Invert grid", False)
                 mask = np.fromfunction(lambda y,x: (((x//A + y//B)%2)==0)^inv, (h, w))
-
             preview = base.copy()
             preview[...,3] *= mask.astype(np.uint8)
 
@@ -214,28 +222,4 @@ else:
         for y in range(h):
             for x in range(w):
                 inv_map[y,x] = nearest_rubik_color(tuple(inv_arr[y,x]))
-                tgt_map[y,x] = nearest_rubik_color(tuple(tgt_arr[y,x]))
-
-        tgt_map = np.fliplr(tgt_map)
-
-        cy, cx = h//2, w//2
-        if tgt_map[cy,cx] != opposites[inv_map[cy,cx]]:
-            st.error(f"Invariant violated: center must be {opposites[inv_map[cy,cx]]}")
-        else:
-            st.success("Center invariant holds. Double-face mosaic is feasible!")
-
-        disp_inv = Image.fromarray(np.uint8([[rubik_colors[inv_map[y,x]] for x in range(w)] for y in range(h)]))
-        disp_tgt = Image.fromarray(np.uint8([[rubik_colors[tgt_map[y,x]] for x in range(w)] for y in range(h)]))
-        disp = Image.fromarray(
-            np.hstack([np.array(disp_inv.resize((w*display_zoom, h*display_zoom), Image.NEAREST)),
-                       np.array(disp_tgt.resize((w*display_zoom, h*display_zoom), Image.NEAREST))])
-        )
-        st.image(disp, caption="Front (A) → Back (B, mirrored)", use_container_width=False)
-
-        st.markdown("### Sticker counts on target")
-        for color, cnt in Counter(tgt_map.flatten()).items():
-            st.write(f"- {color}: {cnt}")
-
-        buf = BytesIO()
-        disp_tgt.save(buf, format="PNG"); buf.seek(0)
-        st.sidebar.download_button("Download mapped PNG", data=buf, file_name="mapped_rubik.png", mime="image/png")
+                tgt_map[y,x] = nearest_rubik_color(tuple(tgt_arr[y
